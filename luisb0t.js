@@ -52,19 +52,6 @@ const LuisModelUrl = 'https://' + luisAPIHostName + '/luis/v2.0/apps/' + luisApp
 var recognizer = new builder.LuisRecognizer(LuisModelUrl);
 bot.recognizer(recognizer);
 
-bot.dialog('/welcome', [
-  function(session, args, next) {
-    // ToDo: need to offer an option to say "help"
-    if (session.message.text.trim()) {
-      session.endDialog(
-        "Sorry, I didn't welcomewelcomewelcomewelcome of our conversation"
-      );
-    } else {
-      session.endDialog();
-    }
-  }
-]);
-
 // Add a dialog for each intent that the LUIS app recognizes.
 // See https://docs.microsoft.com/en-us/bot-framework/nodejs/bot-builder-nodejs-recognize-intent-luis 
 bot.dialog('GreetingDialog',
