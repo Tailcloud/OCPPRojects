@@ -1,10 +1,9 @@
-
 var restify = require('restify');
 var builder = require('botbuilder');
 var botbuilder_azure = require("botbuilder-azure");
-
+ 
 const cognitiveServices = require('botbuilder-cognitiveservices');
-
+ 
 // Setup Restify Server
 var server = restify.createServer();
 server.listen(process.env.port || process.env.PORT || 3978, function () {
@@ -17,33 +16,37 @@ var connector = new builder.ChatConnector({
     appPassword: process.env.MicrosoftAppPassword,
     openIdMetadata: process.env.BotOpenIdMetadata
 });
-const recognizer = new cognitiveServices.QnAMakerRecognizer({
-    knowledgeBaseId: process.env.knowledgeBaseId,
-    subscriptionKey: process.env.subscriptionKey 
-});
 
+    
+const recognizer = new cognitiveServices.QnAMakerRecognizer({
+    knowledgeBaseId: '91c635b7-5349-4186-a7b3-3d6d03911cd9',
+    authKey: 'c40909cd-9e9c-48b7-8ace-8606fa689081',
+    endpointHostName: 'https://0613qa.azurewebsites.net/qnamaker'
+});
+ 
 // Listen for messages from users 
 server.post('/api/messages', connector.listen());
-
+ 
 /*----------------------------------------------------------------------------------------
 * Bot Storage: This is a great spot to register the private state storage for your bot. 
 * We provide adapters for Azure Table, CosmosDb, SQL Azure, or you can implement your own!
 * For samples and documentation, see: https://github.com/Microsoft/BotBuilder-Azure
 * ---------------------------------------------------------------------------------------- */
-
+ 
 var tableName = 'botdata';
 var azureTableClient = new botbuilder_azure.AzureTableClient(tableName, process.env['AzureWebJobsStorage']);
 var tableStorage = new botbuilder_azure.AzureBotStorage({ gzipData: false }, azureTableClient);
-
+ 
 var qnaMakerDialog = new cognitiveServices.QnAMakerDialog({
     recognizers: [recognizer],
     defaultMessage: 'Sorry, no match found!',
     qnaThreshold: 0.3
 });
-
+ 
+ 
 const bot = new builder.UniversalBot(connector);
 bot.dialog('/', qnaMakerDialog);
-
+ 
 bot.dialog('showhamburger', function (session) {
     var msg = new builder.Message(session);
     msg.attachmentLayout(builder.AttachmentLayout.carousel)
@@ -67,7 +70,7 @@ bot.dialog('showhamburger', function (session) {
     ]);
     session.send(msg).endDialog();
 }).triggerAction({ matches: /^(hamburgers|eat|hamburger)/i });
-
+ 
 bot.dialog('showdrink', function (session) {
     var msg = new builder.Message(session);
     msg.attachmentLayout(builder.AttachmentLayout.carousel)
@@ -91,7 +94,7 @@ bot.dialog('showdrink', function (session) {
     ]);
     session.send(msg).endDialog();
 }).triggerAction({ matches: /^(drink|drinks|cola|juice|coffee)/i });
-
+ 
 // Add dialog to handle 'Buy' button click
 bot.dialog('buyButtonClick', [
     function (session, results) {
@@ -100,13 +103,13 @@ bot.dialog('buyButtonClick', [
         if (results.response) {
             item.size = results.response.entity.toLowerCase();
         }
-
+ 
         // Add to cart
         if (!session.userData.cart) {
             session.userData.cart = [];
         }
         session.userData.cart.push(item);
-
+ 
         // Send confirmation to users
         session.send("A has been added to your cart.", item).endDialog();
     }
