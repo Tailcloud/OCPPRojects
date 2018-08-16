@@ -7,7 +7,7 @@ var MongoClient = require("mongodb").MongoClient;
 var assert = require('assert');
 var ObjectId = require('mongodb').ObjectID;
 
-var url = 'mongodb://timeb0tdb:KVPdcQFONq7hrEyIbQoCDPGMFH31wLTPQp78dUr1uG9w9x7wuhVxbvy3TcVaTDPUwrDK3Rya7DyMVSeTFWuVLQ%3D%3D@timeb0tdb.documents.azure.com:10255/?ssl=true';
+var url = '';
 var userName = "";
 var userEmail = "";
 var userToken = "";
