@@ -1,0 +1,163 @@
+var restify = require('restify');
+var builder = require('botbuilder');
+var botbuilder_azure = require("botbuilder-azure");
+var request = require('request');
+var server = restify.createServer();
+var MongoClient = require("mongodb").MongoClient;
+var assert = require('assert');
+var ObjectId = require('mongodb').ObjectID;
+
+var url = 'mongodb://timeb0tdb:KVPdcQFONq7hrEyIbQoCDPGMFH31wLTPQp78dUr1uG9w9x7wuhVxbvy3TcVaTDPUwrDK3Rya7DyMVSeTFWuVLQ%3D%3D@timeb0tdb.documents.azure.com:10255/?ssl=true';
+var userName = "";
+var userEmail = "";
+var userToken = "";
+var G_token;
+var default_header = "";
+var alias = "";
+server.listen(process.env.port || process.env.PORT || 3978, function () {
+   console.log('%s listening to %s', server.name, server.url); 
+});
+  
+// Create chat connector for communicating with the Bot Framework Service
+var connector = new builder.ChatConnector({
+    appId: process.env.MicrosoftAppId,
+    appPassword: process.env.MicrosoftAppPassword,
+    openIdMetadata: process.env.BotOpenIdMetadata
+});
+
+// Listen for messages from users 
+server.post('/api/messages', connector.listen());
+
+/*----------------------------------------------------------------------------------------
+* Bot Storage: This is a great spot to register the private state storage for your bot. 
+* We provide adapters for Azure Table, CosmosDb, SQL Azure, or you can implement your own!
+* For samples and documentation, see: https://github.com/Microsoft/BotBuilder-Azure
+* ---------------------------------------------------------------------------------------- */
+
+var tableName = 'botdata';
+var azureTableClient = new botbuilder_azure.AzureTableClient(tableName, process.env['AzureWebJobsStorage']);
+var tableStorage = new botbuilder_azure.AzureBotStorage({ gzipData: false }, azureTableClient);
+// Create your bot with a function to receive messages from the user
+var bot = new builder.UniversalBot(connector);
+bot.set('storage', tableStorage);
+bot.dialog('/', new builder.IntentDialog()
+    .matchesAny([/help/i, /support/i, /problem/i, /search/i, /time/i], [
+        function (session) {
+            session.beginDialog('/support');
+        },
+        function (session, result) {
+            var ticketNumber = result.response;
+            // session.send("Your ticket number is %s", ticketNumber);
+            session.endDialog();
+        }
+    ])
+    .matchesAny([/hi/i, /hello/i], [
+        function (session) {
+            session.send("Hello there.....");
+        }
+    ])
+    .matchesAny([/token/i],[
+      function(session){
+        session.send("token:"+userToken);
+      }
+    ])
+    .onDefault([
+        function (session) {
+            session.send("sorry could not figure out intent");
+        }
+    ])
+);
+var ori_data_body = {
+  "attendees": [
+    {
+      "emailAddress": {
+        "address": alias+"@M365bs.onmicrosoft.com"
+      },
+      "type": "Required"
+    }
+  ]
+};
+var defaultHeader = {
+          'Content-Type' : 'application/json',
+          'Authorization' : 'Bearer '+userToken
+};
+
+bot.dialog('/support',[
+  (session) => {
+    if(G_token){
+    //token存在
+    }else{
+       session.conversationData.data = {};
+       var msg = new builder.Message(session);
+       msg.attachments([
+          new builder.HeroCard(session)
+              .title('請輸入驗證碼')
+              .buttons([
+                  builder.CardAction.openUrl(session, 'http://localhost:3000/token', 'Sign in'),
+              ])
+      ]);
+      builder.Prompts.text(session,msg);
+    }
+  },
+  (session,results,next)=>{
+    if(session.conversationData.token){
+      next();
+    }else{
+      session.conversationData.token = results.response.entity;
+      MongoClient.connect(url,function(err,db){
+        assert.equal(null,err);
+        console.log("connect to db server successfully");
+        const adminDb = db.db("admin");
+        var user = adminDb.collection("Users");
+        user.find({"AuthCode":results.response}).toArray(function(err,items){
+          if(err){
+            console.log("find token error: " + err);
+            session.endDialog("Log in Failed");
+          }else if(items.length==0){
+            console.log("Not exists");
+            session.endDialog("Log in Failed");
+          }else{
+            console.log(items[0].name);
+            userName = items[0].name;
+            userEmail = items[0].email;
+            userToken = items[0].token;
+
+            defaultHeader = {
+                      'Content-Type' : 'application/json',
+                      'Authorization' : 'Bearer '+userToken
+            };
+            session.conversationData.userName=items[0].name;
+            session.conversationData.userEmail=items[0].email;
+            session.conversationData.userToken=items[0].token;
+          }
+        });
+      });
+      builder.Prompts.text(session,userToken+"Welcome "+userName+" What I can do for you? Please insert @alias for searching");
+    }
+  },
+  (session,results)=>{
+    ori_data_body = {
+      "attendees": [
+      {
+        "emailAddress": {
+          "address": results.response+"@m365bs.onmicrosoft.com"
+        },
+        "type": "Required"
+      }
+      ]
+    };
+    console.log("result address"+JSON.stringify(results.response)+".."+results.response);
+    request({
+      uri:"https://graph.microsoft.com/v1.0/me/findMeetingTimes",
+      method:"POST",
+      headers:defaultHeader,
+      json:ori_data_body
+      },function(error,response,body){
+        console.log("call post meeting"+JSON.stringify(body));
+        builder.Prompts.choice(session,"建議時間: ", [JSON.stringify(body.meetingTimeSuggestions[0].meetingTimeSlot.start.dateTime),JSON.stringify(body.meetingTimeSuggestions[1].meetingTimeSlot.start.dateTime)], { listStyle: builder.ListStyle.button });
+        // session.send('建議時間: '+JSON.stringify(body.meetingTimeSuggestions[0].meetingTimeSlot.start.dateTime)+' to '+JSON.stringify(body.meetingTimeSuggestions[0].meetingTimeSlot.end.dateTime));
+     });
+    session.endDialog();
+
+  }
+]);
