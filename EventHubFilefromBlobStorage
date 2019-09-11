@@ -1,0 +1,37 @@
+import os
+import string
+import json
+import avro.schema
+import ast
+from avro.datafile import DataFileReader, DataFileWriter
+from avro.io import DatumReader, DatumWriter
+from azure.storage.blob import BlockBlobService
+
+
+def processBlob(filename):
+    reader = DataFileReader(open(filename, 'rb'), DatumReader())
+    file = open("BlobData.txt","w",encoding="utf-8")
+    dict = {}
+    for reading in reader:
+        # print("reader+",reading)
+        bodystr = reading['Body'].decode('utf-8')
+        file.write(bodystr)
+        file.write('\n')
+    reader.close()
+    file.close()
+
+def startProcessing(accountName, key, container):
+    print('Processor started using path: ' + os.getcwd())
+    block_blob_service = BlockBlobService(account_name=accountName, account_key=key)
+    generator = block_blob_service.list_blobs(container)
+    for blob in generator:
+        #content_length == 508 is an empty file, so only process content_length > 508 (skip empty files)
+        if blob.properties.content_length > 508:
+            print('Downloaded a non empty blob: ' + blob.name)
+            cleanName = str.replace(blob.name, '/', '_')
+            block_blob_service.get_blob_to_path(container, blob.name, cleanName)
+            print(cleanName)
+            processBlob(cleanName)
+            os.remove(cleanName)
+        block_blob_service.delete_blob(container, blob.name)
+startProcessing({Container}, {KEY}, {Blob})
